@@ -28,6 +28,8 @@ CURRENT_QDISC=$(sysctl net.core.default_qdisc | awk '{print $3}')
 
 # sysctl 配置文件路径
 SYSCTL_CONF="/etc/sysctl.d/99-joeyblog.conf"
+# 模块自动加载配置文件路径
+MODULES_CONF="/etc/modules-load.d/joeyblog-qdisc.conf"
 
 # 函数：清理 sysctl.d 中的旧配置
 clean_sysctl_conf() {
@@ -36,8 +38,53 @@ clean_sysctl_conf() {
     sudo sed -i '/net.ipv4.tcp_congestion_control/d' "$SYSCTL_CONF"
 }
 
+# 函数：加载队列调度模块
+load_qdisc_module() {
+    local qdisc_name="$1"
+    local module_name="sch_$qdisc_name"
+    
+    # 检查模块是否已加载
+    if lsmod | grep -q "^${module_name//-/_}"; then
+        return 0
+    fi
+    
+    # 尝试加载模块
+    echo -e "\033[36m正在加载内核模块 $module_name...\033[0m"
+    if sudo modprobe "$module_name" 2>/dev/null; then
+        echo -e "\033[1;32m✔ 模块 $module_name 加载成功\033[0m"
+        return 0
+    else
+        echo -e "\033[33m⚠ 模块 $module_name 加载失败，可能内核不支持\033[0m"
+        return 1
+    fi
+}
+
 # 函数：询问是否永久保存更改
 ask_to_save() {
+    # 首先尝试加载队列调度模块
+    load_qdisc_module "$QDISC"
+    
+    # 立即应用设置
+    echo -e "\033[36m正在应用配置...\033[0m"
+    sudo sysctl -w net.core.default_qdisc="$QDISC" > /dev/null 2>&1
+    sudo sysctl -w net.ipv4.tcp_congestion_control="$ALGO" > /dev/null 2>&1
+    
+    # 验证是否生效
+    NEW_QDISC=$(sysctl -n net.core.default_qdisc 2>/dev/null)
+    NEW_ALGO=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null)
+    
+    if [[ "$NEW_QDISC" == "$QDISC" && "$NEW_ALGO" == "$ALGO" ]]; then
+        echo -e "\033[1;32m✔ 配置已立即生效！\033[0m"
+        echo -e "\033[36m  当前队列算法：\033[1;32m$NEW_QDISC\033[0m"
+        echo -e "\033[36m  当前拥塞控制：\033[1;32m$NEW_ALGO\033[0m"
+    else
+        echo -e "\033[31m✘ 配置应用失败！\033[0m"
+        echo -e "\033[33m  队列算法期望：$QDISC，实际：$NEW_QDISC\033[0m"
+        echo -e "\033[33m  拥塞控制期望：$ALGO，实际：$NEW_ALGO\033[0m"
+        echo -e "\033[33m  可能原因：当前内核不支持 $QDISC 队列算法\033[0m"
+        return 1
+    fi
+    
     echo -n -e "\033[36m(｡♥‿♥｡) 要将这些配置永久保存到 $SYSCTL_CONF 吗？(y/n): \033[0m"
     read -r SAVE
     if [[ "$SAVE" == "y" || "$SAVE" == "Y" ]]; then
@@ -45,9 +92,12 @@ ask_to_save() {
         echo "net.core.default_qdisc=$QDISC" | sudo tee -a "$SYSCTL_CONF" > /dev/null
         echo "net.ipv4.tcp_congestion_control=$ALGO" | sudo tee -a "$SYSCTL_CONF" > /dev/null
         sudo sysctl --system > /dev/null 2>&1
-        echo -e "\033[1;32m(☆^ー^☆) 更改已永久保存啦~\033[0m"
+        
+        # 配置模块开机自动加载（覆盖旧配置，确保只加载当前需要的模块）
+        echo "sch_$QDISC" | sudo tee "$MODULES_CONF" > /dev/null
+        echo -e "\033[1;32m(☆^ー^☆) 更改已永久保存，模块 sch_$QDISC 将在开机时自动加载~\033[0m"
     else
-        echo -e "\033[33m(⌒_⌒;) 好吧，没有永久保存呢~\033[0m"
+        echo -e "\033[33m(⌒_⌒;) 好吧，没有永久保存，重启后会恢复原设置呢~\033[0m"
     fi
 }
 
