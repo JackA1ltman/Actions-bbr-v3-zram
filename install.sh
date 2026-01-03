@@ -41,20 +41,22 @@ clean_sysctl_conf() {
 # 函数：加载队列调度模块
 load_qdisc_module() {
     local qdisc_name="$1"
+    local module_name="sch_$qdisc_name"
     
-    # fq 和 fq_codel 是内核内置的，不需要加载模块
-    if [[ "$qdisc_name" == "fq" || "$qdisc_name" == "fq_codel" ]]; then
+    # 检查队列算法是否已可用（通过尝试读取当前可用的 qdisc）
+    # 如果 sysctl 能成功设置，说明模块已存在
+    if sudo sysctl -w net.core.default_qdisc="$qdisc_name" > /dev/null 2>&1; then
+        # 恢复原设置
+        sudo sysctl -w net.core.default_qdisc="$CURRENT_QDISC" > /dev/null 2>&1
         return 0
     fi
-    
-    local module_name="sch_$qdisc_name"
     
     # 检查模块是否已加载
     if lsmod | grep -q "^${module_name//-/_}"; then
         return 0
     fi
     
-    # 尝试加载模块
+    # 模块不存在，尝试加载
     echo -e "\033[36m正在加载内核模块 $module_name...\033[0m"
     if sudo modprobe "$module_name" 2>/dev/null; then
         echo -e "\033[1;32m✔ 模块 $module_name 加载成功\033[0m"
