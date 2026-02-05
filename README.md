@@ -41,7 +41,7 @@
 
 1. **一键运行**  
    ```bash
-   bash <(curl -l -s https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/refs/heads/main/install.sh)
+   bash <(curl -l -s https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/refs/heads/main/install.sh)
    ```
 
 ---

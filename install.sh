@@ -172,7 +172,7 @@ install_packages() {
 # 函数：检查并安装最新版本
 install_latest_version() {
     echo -e "\033[36m正在从 GitHub 获取最新版本信息...\033[0m"
-    BASE_URL="https://api.github.com/repos/byJoey/Actions-bbr-v3/releases"
+    BASE_URL="https://api.github.com/repos/JackA1ltman/Actions-bbr-v3-zram/releases"
     RELEASE_DATA=$(curl -sL "$BASE_URL")
     if [[ -z "$RELEASE_DATA" ]]; then
         echo -e "\033[31m从 GitHub 获取版本信息失败。请检查网络连接或 API 状态。\033[0m"
@@ -282,6 +282,7 @@ echo -e "\033[36m当前 TCP 拥塞控制算法：\033[0m\033[1;32m$CURRENT_ALGO\
 echo -e "\033[36m当前队列管理算法：    \033[0m\033[1;32m$CURRENT_QDISC\033[0m"
 print_separator
 echo -e "\033[1;33m作者：Joey  |  博客：https://joeyblog.net  |  反馈群组：https://t.me/+ft-zI76oovgwNmRh\033[0m"
+echo -e "\033[1;33m改版作者：JackA1ltman\033[0m"
 print_separator
 
 echo -e "\033[1;33m╭( ･ㅂ･)و ✧ 你可以选择以下操作哦：\033[0m"
