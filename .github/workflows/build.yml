@@ -104,7 +104,7 @@ jobs:
             make olddefconfig
           fi
 
-          echo "BUILD_TIME=$(date +%s)" >>  >> $GITHUB_ENV
+          echo "BUILD_TIME=$(date +%s)" >> $GITHUB_ENV
 
       - name: 设定 ccache
         uses: hendrikmuhs/ccache-action@v1.2
