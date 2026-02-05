@@ -104,22 +104,21 @@ jobs:
             make olddefconfig
           fi
 
+          echo "BUILD_TIME=$(date +%s)" >>  >> $GITHUB_ENV
+
       - name: 设定 ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: current
+          key: build-${{ env.BUILD_TIME }}
           max-size: 2G
 
       - name: 构建内核 Debian 包
         working-directory: ./kernel/linux
         run: |
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            make ARCH=arm64 bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
+            make ARCH=arm64 CC="ccache gcc" CXX="ccache g++" bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
           else
-            make bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
+            make CC="ccache gcc" CXX="ccache g++" bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
           fi
 
       - name: 上传配置文件
