@@ -90,9 +90,9 @@ jobs:
         working-directory: ./kernel/linux
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            curl -sSL https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/arm64.config > .config
+            curl -sSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/arm64.config > .config
           else
-            curl -sSL https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/x86-64.config > .config
+            curl -sSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/x86-64.config > .config
           fi
 
           scripts/config --disable SYSTEM_TRUSTED_KEYS
