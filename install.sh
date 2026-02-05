@@ -218,7 +218,7 @@ install_latest_version() {
 
 # 函数：安装指定版本
 install_specific_version() {
-    BASE_URL="https://api.github.com/repos/byJoey/Actions-bbr-v3/releases"
+    BASE_URL="https://api.github.com/repos/JackA1ltman/Actions-bbr-v3-zram/releases"
     RELEASE_DATA=$(curl -s "$BASE_URL")
     if [[ -z "$RELEASE_DATA" ]]; then
         echo -e "\033[31m从 GitHub 获取版本信息失败。请检查网络连接或 API 状态。\033[0m"
