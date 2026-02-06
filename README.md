@@ -1,8 +1,10 @@
-# ✨BBR 管理脚本✨  
+# ✨BBR + ZRAM 管理脚本✨  
 
 一个为 Debian/Ubuntu 用户设计的，简单、高效且功能丰富的 BBR 管理脚本。
 
 无论是想一键安装最新的 **BBR v3** 内核，还是在不同的网络加速方案之间灵活切换，本脚本都能帮你轻松搞定。
+
+本内核默认启用Zstd压缩为默认，但提供LZ4，LZ4HC，LZO，DEFALTE等压缩算法。
 
 > **我们致力于提供优雅的界面和流畅的操作，让内核管理不再是件头疼事。**
 
@@ -83,6 +85,8 @@ A: 别慌！记得备份你的内核，或者到 [Joey's Blog](https://joeyblog.
 **Joey**  
 📖 博客：[JoeyBlog](https://joeyblog.net)  
 💬 群组：[Telegram Feedback Group](https://t.me/+ft-zI76oovgwNmRh)
+
+**JackA1ltman**
 
 ---
 
