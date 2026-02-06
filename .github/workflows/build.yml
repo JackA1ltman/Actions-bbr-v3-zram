@@ -31,7 +31,7 @@ jobs:
       KERNEL_VERSION: ""
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
-      CCACHE_HARDLINK: "true"
+      CCACHE_HARDLINK: "false"
     steps:
       - name: 获取内核版本
         id: get_kernel_version
