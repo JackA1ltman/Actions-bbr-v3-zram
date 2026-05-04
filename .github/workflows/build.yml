@@ -102,6 +102,12 @@ jobs:
           scripts/config --disable SYSTEM_REVOCATION_KEYS
           # Mitigation for CVE-2026-31431 attack surface: do not expose userspace AEAD API.
           scripts/config --disable CRYPTO_USER_API_AEAD
+          # Ensure BTF metadata is available for eBPF CO-RE userspace.
+          scripts/config --disable DEBUG_INFO_NONE
+          scripts/config --enable DEBUG_INFO
+          scripts/config --enable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          scripts/config --enable DEBUG_INFO_BTF
+          scripts/config --enable DEBUG_INFO_BTF_MODULES
           
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             make ARCH=arm64 olddefconfig
@@ -114,6 +120,11 @@ jobs:
           # Enforce CI security gate so vulnerable config never gets released.
           if ! grep -q '^# CONFIG_CRYPTO_USER_API_AEAD is not set' .config; then
             echo "ERROR: CONFIG_CRYPTO_USER_API_AEAD is enabled; refusing to continue."
+            exit 1
+          fi
+
+          if ! grep -q '^CONFIG_DEBUG_INFO_BTF=y' .config; then
+            echo "ERROR: CONFIG_DEBUG_INFO_BTF is not enabled; refusing to continue."
             exit 1
           fi
 
@@ -134,7 +145,12 @@ jobs:
             exit 1
           fi
 
-          echo "[SECURITY][PASS] CRYPTO_USER_API_AEAD is disabled; release can continue."
+          if ! grep -q '^CONFIG_DEBUG_INFO_BTF=y' .config; then
+            echo "[SECURITY][FAIL] CONFIG_DEBUG_INFO_BTF is not enabled."
+            exit 1
+          fi
+
+          echo "[SECURITY][PASS] CRYPTO_USER_API_AEAD disabled and BTF enabled; release can continue."
 
       - name: 设定 ccache
         uses: hendrikmuhs/ccache-action@v1.2
@@ -146,9 +162,9 @@ jobs:
         working-directory: ./kernel/linux
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            make ARCH=arm64 CC="ccache gcc" CXX="ccache g++" bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
+            make ARCH=arm64 bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3  KDEB_COMPRESS=gzip
           else
-            make CC="ccache gcc" CXX="ccache g++" bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3
+            make bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3 KDEB_COMPRESS=gzip
           fi
 
       - name: 上传配置文件
@@ -168,4 +184,4 @@ jobs:
         with:
           tag_name: ${{ matrix.arch }}-${{ env.KERNEL_VERSION }}
           files: ./kernel/linux-*.deb
-          body: "带有 BBRv3 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey."
+          body: "带有 BBRv3 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey and JackA1ltman."
