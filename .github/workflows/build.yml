@@ -253,6 +253,7 @@ jobs:
         with:
           name: config-${{ matrix.arch }}
           path: ./kernel/linux/.config
+          include-hidden-files: true
 
       - name: 上传 deb 包
         if: env.BUILD_NEEDED == 'true'
