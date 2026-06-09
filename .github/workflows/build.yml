@@ -123,8 +123,18 @@ jobs:
 
       - name: 准备 .config 并禁用证书检查
         if: env.BUILD_NEEDED == 'true'
+        timeout-minutes: 8
         working-directory: ./kernel/linux
         run: |
+          set -euxo pipefail
+          run_olddefconfig() {
+            if [ "${{ matrix.arch }}" = "arm64" ]; then
+              timeout 300 make ARCH=arm64 olddefconfig < /dev/null
+            else
+              timeout 300 make olddefconfig < /dev/null
+            fi
+          }
+
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             cp "$GITHUB_WORKSPACE/arm64.config" .config
           else
@@ -157,11 +167,7 @@ jobs:
           scripts/config --disable AF_RXRPC
           scripts/config --disable RXKAD
           
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            make ARCH=arm64 olddefconfig
-          else
-            make olddefconfig
-          fi
+          run_olddefconfig
 
           scripts/config --disable AFS_FS
           scripts/config --disable XFRM_ESP
@@ -185,11 +191,7 @@ jobs:
           scripts/config --disable DEBUG_INFO_BTF_MODULES
           scripts/config --disable MODULE_ALLOW_BTF_MISMATCH
 
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            make ARCH=arm64 olddefconfig
-          else
-            make olddefconfig
-          fi
+          run_olddefconfig
 
           if grep -q '^CONFIG_XFRM_ESP=' .config; then
             echo "ERROR: CONFIG_XFRM_ESP is enabled; refusing to continue."
