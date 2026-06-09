@@ -167,7 +167,7 @@ def main() -> None:
     if high_risk_surface:
         print("[!] 检测到高风险暴露面。")
         print("[!] 若内核未包含上游修复补丁，系统可能受 CVE-2026-31431 影响。")
-        print("[!] 建议：升级内核，禁用 CRYPTO_USER_API_AEAD，或屏蔽 algif_aead。")
+        print("[!] 建议：升级到新构建内核，或禁用 CRYPTO_USER_API_AEAD；旧内核可临时屏蔽 algif_aead。")
     elif reduced_surface:
         print("[+] 风险面已收敛/已缓解。")
     else:

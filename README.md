@@ -122,7 +122,6 @@ arm64-7.0.11
 
 - `tcp_bbr` 模块版本是否为 `3`。
 - 当前 TCP 拥塞控制算法是否为 `bbr`。
-- CVE-2026-31431 缓解是否写入。
 - Dirty Frag 相关模块黑名单是否写入。
 
 也可以手动检查：
@@ -159,7 +158,7 @@ modinfo tcp_bbr 2>/dev/null | grep '^version:'
 
 ## 安全缓解
 
-脚本启动时会写入安全缓解规则：
+脚本启动时会写入 Dirty Frag 风险面收敛规则：
 
 ```text
 /etc/modprobe.d/99-joeyblog-security.conf
@@ -167,10 +166,17 @@ modinfo tcp_bbr 2>/dev/null | grep '^version:'
 
 包含：
 
-- `algif_aead` 黑名单，用于收敛 CVE-2026-31431 风险面。
 - `esp4` / `esp6` / `rxrpc` 黑名单，用于收敛 Dirty Frag 相关风险面。
 
 如果模块当前已加载，脚本会尝试卸载；如果模块被占用，则黑名单会在重启后生效。
+
+CVE-2026-31431 对应的 AEAD userspace 接口在新构建内核中由内核配置侧收敛：
+
+```text
+# CONFIG_CRYPTO_USER_API_AEAD is not set
+```
+
+因此安装脚本不再额外写入 `algif_aead` 黑名单。
 
 ## CVE-2026-31431 检测
 

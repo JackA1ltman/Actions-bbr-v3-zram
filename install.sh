@@ -40,7 +40,7 @@ CURRENT_QDISC=$(sysctl net.core.default_qdisc | awk '{print $3}')
 SYSCTL_CONF="/etc/sysctl.d/99-joeyblog.conf"
 # 模块自动加载配置文件路径
 MODULES_CONF="/etc/modules-load.d/joeyblog-qdisc.conf"
-# 安全加固配置（缓解 CVE-2026-31431）
+# 安全加固配置（Dirty Frag 风险面收敛）
 SECURITY_MODPROBE_CONF="/etc/modprobe.d/99-joeyblog-security.conf"
 # 可选：提升 GitHub API 限额（支持 GITHUB_TOKEN / GH_TOKEN）
 GITHUB_API_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
@@ -122,7 +122,7 @@ ensure_security_rule() {
     fi
 }
 
-# 函数：应用安全缓解（CVE-2026-31431 + Dirty Frag）
+# 函数：应用安全缓解（Dirty Frag）
 apply_security_mitigations() {
     local changed=0
 
@@ -132,9 +132,14 @@ apply_security_mitigations() {
         changed=1
     fi
 
-    # CVE-2026-31431 mitigation
-    ensure_security_rule "blacklist algif_aead" changed
-    ensure_security_rule "install algif_aead /bin/false" changed
+    # The latest kernel builds disable CONFIG_CRYPTO_USER_API_AEAD, so remove
+    # legacy algif_aead runtime blacklists written by older script versions.
+    if grep -Eq '^(blacklist algif_aead|install algif_aead /bin/false)$' "$SECURITY_MODPROBE_CONF" 2>/dev/null; then
+        sudo sed -i '/^blacklist algif_aead$/d' "$SECURITY_MODPROBE_CONF"
+        sudo sed -i '/^install algif_aead \/bin\/false$/d' "$SECURITY_MODPROBE_CONF"
+        changed=1
+        echo -e "\033[1;32m✔ 已移除旧的 algif_aead 黑名单；CVE-2026-31431 风险由新内核配置侧收敛\033[0m"
+    fi
 
     # Dirty Frag mitigation
     ensure_security_rule "blacklist esp4" changed
@@ -144,7 +149,7 @@ apply_security_mitigations() {
     ensure_security_rule "blacklist rxrpc" changed
     ensure_security_rule "install rxrpc /bin/false" changed
 
-    for mod in algif_aead esp4 esp6 rxrpc; do
+    for mod in esp4 esp6 rxrpc; do
         if lsmod | grep -q "^$mod"; then
             if sudo modprobe -r "$mod" 2>/dev/null; then
                 echo -e "\033[1;32m✔ 已卸载 $mod 模块，当前会话已完成缓解\033[0m"
@@ -446,13 +451,6 @@ case "$ACTION" in
             echo -e "\033[1;32mヽ(✿ﾟ▽ﾟ)ノ 检测完成，BBR v3 已正确安装并生效！\033[0m"
         else
             echo -e "\033[33mBBR v3 未完全生效。请确保已安装内核并重启，然后使用选项 4-7 启用。\033[0m"
-        fi
-
-        if grep -Eq '^\s*blacklist\s+algif_aead' "$SECURITY_MODPROBE_CONF" 2>/dev/null; then
-            echo -e "\033[1;32m✔ CVE-2026-31431 缓解状态：已启用（algif_aead 已黑名单）\033[0m"
-        else
-            echo -e "\033[31m✘ CVE-2026-31431 缓解状态：未启用\033[0m"
-            echo -e "\033[33m  建议重新运行脚本，或手动写入 $SECURITY_MODPROBE_CONF\033[0m"
         fi
 
         if grep -Eq '^\s*blacklist\s+esp4' "$SECURITY_MODPROBE_CONF" 2>/dev/null \
