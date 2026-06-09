@@ -53,7 +53,7 @@ jobs:
             libncurses-dev libssl-dev libelf-dev \
             bison bc flex rsync debhelper \
             dpkg-dev fakeroot kmod cpio dwarves \
-            lz4 zstd xz-utils curl jq ccache
+            libdw-dev lz4 zstd xz-utils curl jq
 
       - name: 创建源码目录
         run: mkdir -p ./kernel/linux
