@@ -1,142 +1,171 @@
-# ✨BBR + ZRAM 管理脚本✨  
+# Actions BBRv3 + ZRAM Kernel
 
-一个为 Debian/Ubuntu 用户设计的，简单、高效且功能丰富的 BBR 管理脚本。
+面向 Debian/Ubuntu VPS 的 BBRv3 内核自动构建与安装项目。
 
-无论是想一键安装最新的 **BBR v3** 内核，还是在不同的网络加速方案之间灵活切换，本脚本都能帮你轻松搞定。
+本项目的核心目标很明确：**BBRv3 补丁固定，内核自动跟随 kernel.org 最新 stable 版本更新**。构建流程每天检查最新 stable 内核，下载对应 Linux stable 分支源码，然后把仓库内固定的 BBRv3 patch 打到新内核上并生成 Debian 包。
 
 本内核默认启用Zstd压缩为默认，但提供LZ4，LZ4HC，LZO，DEFALTE等压缩算法。
 
-> **我们致力于提供优雅的界面和流畅的操作，让内核管理不再是件头疼事。**
+## 当前策略
 
----
+- 内核版本：自动读取 kernel.org 最新 stable 版本。
+- BBR 版本：固定使用仓库内的 BBRv3 port patch，不自动更新 BBR 实现。
+- 支持架构：`x86_64`、`arm64`。
+- 构建产物：`linux-image`、`linux-headers`、`linux-libc-dev` 等 `.deb` 包。
+- Debug 包：默认不编译、不上传、不发布 `linux-image-*-dbg`。
+- 发布方式：每个架构和内核版本生成独立 GitHub Release tag，例如 `x86_64-7.0.11`、`arm64-7.0.11`。
 
-### 🎯 **目标用户与支持环境**
+## 自动更新边界
 
-在运行脚本前，请确保你的设备符合以下要求：
+同一个内核主线系列内的小版本更新会自动复用同一个 patch。
 
-| 项目 | 要求 |
-| :--- | :--- |
-| **支持架构** | `x86_64` / `aarch64` |
-| **支持系统** | Debian 10+ / Ubuntu 18.04+ |
-| **目标设备** | **云服务器 (VPS/Cloud Server)** 或 **独立服务器** |
-| **引导方式** | 使用标准 `GRUB` 引导加载程序 |
+例如：
 
-> ⚠️ **重要说明**
-> 本脚本**不适用**于大多数单板计算机（SBC），例如**树莓派 (Raspberry Pi)、NanoPi** 等。这些设备通常使用 U-Boot 等非 GRUB 引导方式，脚本会执行失败。
-
----
-
----
-
-### 🌟 功能列表  
-
-👑 **一键安装 BBR v3 内核**  
-🍰 **切换加速模式（BBR+FQ、BBR+CAKE 等）**  
-⚙️ **开启/关闭 BBR 加速**  
-🗑️ **卸载内核，告别不需要的内核版本**  
-👀 **实时查看当前 TCP 拥塞算法和队列算法**  
-🛡️ **默认启用 CVE-2026-31431 缓解（禁用 `algif_aead`）**  
-🛡️ **默认启用 Dirty Frag 缓解（屏蔽 `esp4/esp6/rxrpc`）**  
-🎨 **美化的输出界面，让脚本更有灵魂**  
-
----
-
-### 🚀 如何使用？
-
-1. **一键运行**  
-   ```bash
-   bash <(curl -l -s https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/refs/heads/main/install.sh)
-   ```
-
-2. **运行 CVE-2026-31431 风险面检测脚本（仅检测，不利用）**  
-   ```bash
-   command -v python3 >/dev/null 2>&1 || (sudo apt update && sudo apt install -y python3)
-   curl -fsSL -o cve_2026_31431_detector.py https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/cve_2026_31431_detector.py
-   chmod +x cve_2026_31431_detector.py
-   sudo python3 cve_2026_31431_detector.py
-   ```
-
-   输出说明：
-   - `检测到高风险暴露面`：风险面暴露，建议立即升级并收敛配置
-   - `风险面已收敛/已缓解`：当前风险面已收敛
-   - `结果不确定`：信息不足，需继续核查内核补丁级别
-
----
-
-### 🌟 操作界面  
-
-每次运行脚本，你都会进入一个活泼又实用的选项界面：
-
-```bash
-╭( ･ㅂ･)و ✧ 你可以选择以下操作哦：
-  1. 🛠️  安装 BBR v3
-  2. 🔍 检查是否为 BBR v3
-  3. ⚡ 使用 BBR + FQ 加速
-  4. ⚡ 使用 BBR + FQ_PIE 加速
-  5. ⚡ 使用 BBR + CAKE 加速
-  6. 🔧 开启或关闭 BBR
-  7. 🗑️  卸载
+```text
+7.0.11 -> 7.0.12
+使用 patches/bbrv3-linux-7.0.patch
 ```
 
-> **小提示：** 如果选错了也没关系，脚本会乖乖告诉你该怎么办！  
+如果 kernel.org 最新 stable 跳到新的主线系列，例如：
 
----
+```text
+7.0.x -> 7.1.x
+```
 
-### 🌟 常见问题  
+构建脚本会寻找：
 
-**Q: 为什么下载失败啦？**  
-A: 有可能是 GitHub 链接过期了，来群里吐槽一下吧！  
+```text
+patches/bbrv3-linux-7.1.patch
+```
 
-**Q: 提示 GitHub API rate limit exceeded 怎么办？**  
-A: 先设置 `GITHUB_TOKEN` 后再运行脚本，例如：`export GITHUB_TOKEN=你的令牌`。  
+如果该 patch 不存在，构建会明确失败并停止。这是有意设计：跨主线系列时 TCP/BBR 相关代码可能变化，不能盲目把旧 patch 打上去。
 
-**Q: 我不是 BBR 专家，不知道选哪个加速方案？**  
-A: 放心，BBR + FQ 是最常见的方案，适用于大多数场景～  
+## 安装
 
-**Q: 如果不小心把系统搞崩了怎么办？**  
-A: 别慌！记得备份你的内核，或者到 [Joey's Blog](https://joeyblog.net) 查看修复教程。
+在 Debian/Ubuntu VPS 上执行：
 
-**Q: CVE-2026-31431 怎么处理？**  
-A: 新版脚本会自动写入 `algif_aead` 黑名单并在构建流程中关闭 `CONFIG_CRYPTO_USER_API_AEAD`，避免暴露该漏洞利用面。  
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/install.sh)
+```
 
-**Q: daed/dae 报 no BTF found 怎么办？**  
-A: 新构建流程已强制开启 `CONFIG_DEBUG_INFO_BTF`，升级到最新 release 并重启即可。  
+脚本会从当前 GitHub Releases 中选择适合本机架构的内核包，并提供安装、检查、切换队列算法和卸载入口。
 
-**Q: Dirty Frag 怎么处理？**  
-A: 新版构建会关闭 `XFRM_ESP/INET_ESP/INET6_ESP/AF_RXRPC`，脚本运行时会写入 `esp4/esp6/rxrpc` 黑名单并尝试卸载模块。  
+## 支持环境
 
----
+| 项目 | 要求 |
+| --- | --- |
+| 架构 | `x86_64` / `aarch64` |
+| 系统 | Debian 10+ / Ubuntu 18.04+ |
+| 引导 | GRUB |
+| 场景 | VPS / 云服务器 / 独立服务器 |
 
-### 🌈 作者信息  
+不建议在树莓派、NanoPi 等使用 U-Boot 或厂商定制内核链路的设备上使用。
 
-**Joey**  
-📖 博客：[JoeyBlog](https://joeyblog.net)  
-💬 群组：[Telegram Feedback Group](https://t.me/+ft-zI76oovgwNmRh)
+## GitHub Actions 构建流程
 
-**JackA1ltman**
+构建流程在 `.github/workflows/build.yml` 中定义：
 
----
+1. 读取 kernel.org 最新 stable 版本。
+2. 检查当前架构对应 release 是否已经存在，存在则跳过。
+3. 下载 `gregkh/linux` 的 `linux-X.Y.y` stable 分支。
+4. 使用 `scripts/apply-bbrv3-port.sh` 应用固定 BBRv3 patch。
+5. 套用对应架构 `.config` 并运行 `olddefconfig`。
+6. 强制关闭 debug info，避免生成 `-dbg` 包。
+7. 构建 Debian 包并发布到 GitHub Release。
 
-### ❤️ 开源协议  
+手动触发：
 
-欢迎使用、修改和传播这个脚本！如果你觉得它对你有帮助，记得来点个 Star ⭐ 哦～  
+```bash
+gh workflow run build.yml
+```
 
-> 💡 **免责声明：** 本脚本由作者热爱 Linux 的灵魂驱动编写，虽尽力确保安全，但任何使用问题请自负风险！
-### 🌟 特别鸣谢  
-感谢 [Naochen2799/Latest-Kernel-BBR3](https://github.com/Naochen2799/Latest-Kernel-BBR3) 项目提供的技术支持与灵感参考。  
-## 💡 赞助声明
+查看最近构建：
 
-本项目由 [VTEXS](https://console.vtexs.com/?affid=1513) 的「开源项目免费 VPS 计划」提供算力支持。  
-感谢 VTEXS 对开源社区的支持！
+```bash
+gh run list --limit 5
+```
 
+## BBRv3 Patch 管理
 
-🎉 **快来体验不一样的 BBR 管理工具吧！** 🎉  
-## Star History
+当前固定 patch：
 
-<a href="https://star-history.com/#byJoey/Actions-bbr-v3&Timeline">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=byJoey/Actions-bbr-v3&type=Timeline&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=byJoey/Actions-bbr-v3&type=Timeline" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=byJoey/Actions-bbr-v3&type=Timeline" />
- </picture>
-</a>
+```text
+patches/bbrv3-linux-7.0.patch
+```
+
+脚本会根据内核源码 `Makefile` 中的 `VERSION` 和 `PATCHLEVEL` 自动选择对应 patch：
+
+```text
+linux-7.0.y -> patches/bbrv3-linux-7.0.patch
+linux-7.1.y -> patches/bbrv3-linux-7.1.patch
+```
+
+这保证了两点：
+
+- 小版本自动更新时不需要改 BBR。
+- 新主线系列不兼容时会明确失败，避免产出不可验证的内核。
+
+## 安全与配置
+
+构建流程会在 `.config` 中强制关闭以下风险面：
+
+- `CONFIG_AFS_FS`
+- `CONFIG_AF_RXRPC`
+- `CONFIG_RXKAD`
+- `CONFIG_XFRM_ESP`
+- `CONFIG_INET_ESP`
+- `CONFIG_INET6_ESP`
+- `CONFIG_SYSTEM_TRUSTED_KEYS`
+- `CONFIG_SYSTEM_REVOCATION_KEYS`
+
+同时关闭 debug info：
+
+- `CONFIG_DEBUG_INFO`
+- `CONFIG_DEBUG_INFO_BTF`
+- `CONFIG_DEBUG_INFO_BTF_MODULES`
+
+构建结束后会检查是否生成 `*-dbg*.deb`。如果出现 debug deb，workflow 会直接失败。
+
+## 检测脚本
+
+仓库提供 CVE-2026-31431 风险面检测脚本：
+
+```bash
+command -v python3 >/dev/null 2>&1 || (sudo apt update && sudo apt install -y python3)
+curl -fsSL -o cve_2026_31431_detector.py https://raw.githubusercontent.com/byJoey/Actions-bbr-v3/main/cve_2026_31431_detector.py
+chmod +x cve_2026_31431_detector.py
+sudo python3 cve_2026_31431_detector.py
+```
+
+检测脚本只做本机风险面检查，不执行漏洞利用。
+
+## 常用命令
+
+检查当前 TCP 拥塞算法：
+
+```bash
+sysctl net.ipv4.tcp_congestion_control
+```
+
+检查当前默认队列算法：
+
+```bash
+sysctl net.core.default_qdisc
+```
+
+启用常见组合：
+
+```bash
+sudo sysctl -w net.ipv4.tcp_congestion_control=bbr
+sudo sysctl -w net.core.default_qdisc=fq
+```
+
+确认当前内核版本：
+
+```bash
+uname -r
+```
+
+## 免责声明
+
+内核升级有风险。安装前建议保留可启动的旧内核，并确认 VPS 控制台或救援模式可用。使用本项目构建或安装的内核造成的系统启动失败、网络异常或数据损失，由使用者自行承担。

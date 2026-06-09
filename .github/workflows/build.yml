@@ -2,9 +2,20 @@ name: 构建带有BBRv3的内核
 
 on:
   workflow_dispatch:
+  schedule:
+    # Daily automatic kernel refresh. BBRv3 itself stays pinned to the repo patch.
+    - cron: "17 3 * * *"
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: bbrv3-kernel-build
+  cancel-in-progress: false
 
 jobs:
   cleanup:
@@ -42,10 +53,24 @@ jobs:
             | grep -oP '\d+\.\d+\.\d+')
           echo "KERNEL_VERSION=$version" >> $GITHUB_ENV
 
+      - name: 检查是否已发布
+        id: check_release
+        run: |
+          tag="${{ matrix.arch }}-${KERNEL_VERSION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "BUILD_NEEDED=false" >> "$GITHUB_ENV"
+            echo "$tag already exists; skipping build."
+          else
+            echo "BUILD_NEEDED=true" >> "$GITHUB_ENV"
+            echo "$tag does not exist; building latest kernel with pinned BBRv3 patch."
+          fi
+
       - name: 检出代码
+        if: env.BUILD_NEEDED == 'true'
         uses: actions/checkout@v4
 
       - name: 安装依赖项
+        if: env.BUILD_NEEDED == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -56,22 +81,26 @@ jobs:
             libdw-dev lz4 zstd xz-utils curl jq
 
       - name: 创建源码目录
+        if: env.BUILD_NEEDED == 'true'
         run: mkdir -p ./kernel/linux
 
       - name: 下载内核源代码
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel
         run: |
           branch=$(echo "${{ env.KERNEL_VERSION }}" | grep -oP '^\d+\.\d+')
           git clone --depth=1 --branch linux-$branch.y \
             https://github.com/gregkh/linux.git linux
 
-      - name: 添加 Google BBRv3
+      - name: 应用 BBRv3 补丁
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           bash "$GITHUB_WORKSPACE/scripts/apply-bbrv3-port.sh"
           grep -n "BBR_VERSION" net/ipv4/tcp_bbr.c
 
       - name: 编译声明
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           grep -v "MODULE_DESCRIPTION" net/ipv4/tcp_bbr.c > net/ipv4/tcp_bbr.c.tmp
@@ -84,6 +113,7 @@ jobs:
           echo "BUILD_TIME=$(date +%s)" >> $GITHUB_ENV
 
       - name: 更新 Makefile 中的版本号
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           IFS='.' read -r v p s <<< "${{ env.KERNEL_VERSION }}"
@@ -92,16 +122,39 @@ jobs:
           sed -i "s/^SUBLEVEL *=.*/SUBLEVEL = $s/" Makefile
 
       - name: 准备 .config 并禁用证书检查
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
+<<<<<<< HEAD
             curl -sSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/arm64.config > .config
           else
             curl -sSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/x86-64.config > .config
+=======
+            cp "$GITHUB_WORKSPACE/arm64.config" .config
+          else
+            cp "$GITHUB_WORKSPACE/x86-64.config" .config
+>>>>>>> f5bc074 (Automate latest stable BBRv3 builds without debug packages)
           fi
 
           scripts/config --disable SYSTEM_TRUSTED_KEYS
           scripts/config --disable SYSTEM_REVOCATION_KEYS
+          scripts/config --enable TCP_CONG_BBR
+          scripts/config --disable DEFAULT_CUBIC
+          scripts/config --enable DEFAULT_BBR
+          scripts/config --set-str DEFAULT_TCP_CONG bbr
+          # Avoid generating kernel debug info and linux-image-*-dbg packages.
+          scripts/config --disable DEBUG_INFO
+          scripts/config --enable DEBUG_INFO_NONE
+          scripts/config --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          scripts/config --disable DEBUG_INFO_DWARF4
+          scripts/config --disable DEBUG_INFO_DWARF5
+          scripts/config --disable DEBUG_INFO_REDUCED
+          scripts/config --disable DEBUG_INFO_COMPRESSED
+          scripts/config --disable DEBUG_INFO_SPLIT
+          scripts/config --disable DEBUG_INFO_BTF
+          scripts/config --disable DEBUG_INFO_BTF_MODULES
+          scripts/config --disable MODULE_ALLOW_BTF_MISMATCH
           # Mitigation for Dirty Frag attack surface.
           scripts/config --disable AFS_FS
           scripts/config --disable XFRM_ESP
@@ -122,6 +175,21 @@ jobs:
           scripts/config --disable INET6_ESP
           scripts/config --disable AF_RXRPC
           scripts/config --disable RXKAD
+          scripts/config --enable TCP_CONG_BBR
+          scripts/config --disable DEFAULT_CUBIC
+          scripts/config --enable DEFAULT_BBR
+          scripts/config --set-str DEFAULT_TCP_CONG bbr
+          scripts/config --disable DEBUG_INFO
+          scripts/config --enable DEBUG_INFO_NONE
+          scripts/config --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
+          scripts/config --disable DEBUG_INFO_DWARF4
+          scripts/config --disable DEBUG_INFO_DWARF5
+          scripts/config --disable DEBUG_INFO_REDUCED
+          scripts/config --disable DEBUG_INFO_COMPRESSED
+          scripts/config --disable DEBUG_INFO_SPLIT
+          scripts/config --disable DEBUG_INFO_BTF
+          scripts/config --disable DEBUG_INFO_BTF_MODULES
+          scripts/config --disable MODULE_ALLOW_BTF_MISMATCH
 
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             make ARCH=arm64 olddefconfig
@@ -145,8 +213,26 @@ jobs:
             echo "ERROR: CONFIG_AF_RXRPC is enabled; refusing to continue."
             exit 1
           fi
+          if grep -q '^CONFIG_DEBUG_INFO=' .config; then
+            echo "ERROR: CONFIG_DEBUG_INFO is enabled; refusing to build debug kernel packages."
+            exit 1
+          fi
+          if ! grep -q '^CONFIG_TCP_CONG_BBR=y' .config; then
+            echo "ERROR: CONFIG_TCP_CONG_BBR is not built in."
+            exit 1
+          fi
+          if ! grep -q '^CONFIG_DEFAULT_BBR=y' .config; then
+            echo "ERROR: CONFIG_DEFAULT_BBR is not enabled."
+            exit 1
+          fi
+          if ! grep -q '^CONFIG_DEFAULT_TCP_CONG="bbr"' .config; then
+            echo "ERROR: CONFIG_DEFAULT_TCP_CONG is not bbr."
+            exit 1
+          fi
+          grep -E 'CONFIG_(DEBUG_INFO_NONE|TCP_CONG_BBR|DEFAULT_BBR|DEFAULT_TCP_CONG)=' .config
 
       - name: 构建内核 Debian 包
+        if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
@@ -155,19 +241,32 @@ jobs:
             make bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3 KDEB_COMPRESS=gzip skipdbg=true
           fi
 
+      - name: 检查 deb 包
+        if: env.BUILD_NEEDED == 'true'
+        run: |
+          if find ./kernel -maxdepth 1 -name '*-dbg*.deb' | grep -q .; then
+            echo "ERROR: debug deb package was generated."
+            find ./kernel -maxdepth 1 -name '*-dbg*.deb' -print
+            exit 1
+          fi
+          find ./kernel -maxdepth 1 -name 'linux-*.deb' -print | sort
+
       - name: 上传配置文件
+        if: env.BUILD_NEEDED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: config-${{ matrix.arch }}
           path: ./kernel/linux/.config
 
       - name: 上传 deb 包
+        if: env.BUILD_NEEDED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: deb-${{ matrix.arch }}
           path: ./kernel/linux-*.deb
 
       - name: 发布到 GitHub Release
+        if: env.BUILD_NEEDED == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ matrix.arch }}-${{ env.KERNEL_VERSION }}

@@ -3,10 +3,23 @@ set -euo pipefail
 
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(cd -- "$script_dir/.." && pwd)
-patch_file="${BBRV3_PATCH:-$repo_root/patches/bbrv3-linux-7.0.patch}"
+
+kernel_version=$(awk '
+  /^VERSION[[:space:]]*=/ { version = $3 }
+  /^PATCHLEVEL[[:space:]]*=/ { patchlevel = $3 }
+  END {
+    if (version == "" || patchlevel == "") {
+      exit 1
+    }
+    print version "." patchlevel
+  }
+' Makefile)
+
+patch_file="${BBRV3_PATCH:-$repo_root/patches/bbrv3-linux-$kernel_version.patch}"
 
 if [[ ! -f "$patch_file" ]]; then
-  echo "BBRv3 patch not found: $patch_file" >&2
+  echo "BBRv3 patch not found for linux-$kernel_version.y: $patch_file" >&2
+  echo "Add a matching patches/bbrv3-linux-$kernel_version.patch before building this kernel series." >&2
   exit 1
 fi
 
