@@ -122,6 +122,26 @@ ensure_security_rule() {
     fi
 }
 
+current_kernel_disables_aead() {
+    local kernel_release
+    local boot_config
+
+    kernel_release=$(uname -r)
+    boot_config="/boot/config-$kernel_release"
+
+    if [[ -r "$boot_config" ]]; then
+        grep -Fqx "# CONFIG_CRYPTO_USER_API_AEAD is not set" "$boot_config"
+        return $?
+    fi
+
+    if [[ -r /proc/config.gz ]] && command -v gzip >/dev/null 2>&1; then
+        gzip -dc /proc/config.gz 2>/dev/null | grep -Fqx "# CONFIG_CRYPTO_USER_API_AEAD is not set"
+        return $?
+    fi
+
+    return 1
+}
+
 # 函数：应用安全缓解（Dirty Frag）
 apply_security_mitigations() {
     local changed=0
@@ -135,10 +155,14 @@ apply_security_mitigations() {
     # The latest kernel builds disable CONFIG_CRYPTO_USER_API_AEAD, so remove
     # legacy algif_aead runtime blacklists written by older script versions.
     if grep -Eq '^(blacklist algif_aead|install algif_aead /bin/false)$' "$SECURITY_MODPROBE_CONF" 2>/dev/null; then
-        sudo sed -i '/^blacklist algif_aead$/d' "$SECURITY_MODPROBE_CONF"
-        sudo sed -i '/^install algif_aead \/bin\/false$/d' "$SECURITY_MODPROBE_CONF"
-        changed=1
-        echo -e "\033[1;32m✔ 已移除旧的 algif_aead 黑名单；CVE-2026-31431 风险由新内核配置侧收敛\033[0m"
+        if current_kernel_disables_aead; then
+            sudo sed -i '/^blacklist algif_aead$/d' "$SECURITY_MODPROBE_CONF"
+            sudo sed -i '/^install algif_aead \/bin\/false$/d' "$SECURITY_MODPROBE_CONF"
+            changed=1
+            echo -e "\033[1;32m✔ 已移除旧的 algif_aead 黑名单；CVE-2026-31431 风险由当前内核配置侧收敛\033[0m"
+        else
+            echo -e "\033[33m⚠ 当前运行内核尚未确认关闭 CRYPTO_USER_API_AEAD，暂保留旧的 algif_aead 黑名单\033[0m"
+        fi
     fi
 
     # Dirty Frag mitigation
