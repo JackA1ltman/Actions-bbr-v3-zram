@@ -81,6 +81,8 @@ jobs:
           
           tail -n 5 net/ipv4/tcp_bbr.c
 
+          echo "BUILD_TIME=$(date +%s)" >> $GITHUB_ENV
+
       - name: 更新 Makefile 中的版本号
         working-directory: ./kernel/linux
         run: |
@@ -111,8 +113,6 @@ jobs:
           else
             make olddefconfig
           fi
-
-          echo "BUILD_TIME=$(date +%s)" >> $GITHUB_ENV
 
           if grep -q '^CONFIG_XFRM_ESP=' .config; then
             echo "ERROR: CONFIG_XFRM_ESP is enabled; refusing to continue."
