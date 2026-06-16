@@ -8,6 +8,16 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GH_REPO: ${{ github.repository }}
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: bbrv3-kernel-build
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -18,7 +28,61 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      kernel_version: ${{ steps.plan.outputs.kernel_version }}
+      raw_kernel_version: ${{ steps.plan.outputs.raw_kernel_version }}
+      build_needed: ${{ steps.plan.outputs.build_needed }}
+    steps:
+      - name: 检查最新内核和已发布版本
+        id: plan
+        run: |
+          set -euo pipefail
+
+          raw_version=$(curl -fsSL https://www.kernel.org/finger_banner \
+            | awk -F: '/latest stable version/ {gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}')
+          if [ -z "$raw_version" ]; then
+            echo "Failed to read latest stable kernel version from kernel.org." >&2
+            exit 1
+          fi
+
+          version="$raw_version"
+          if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            version="${version}.0"
+          fi
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unexpected stable kernel version: $raw_version" >&2
+            exit 1
+          fi
+
+          echo "raw_kernel_version=$raw_version" >> "$GITHUB_OUTPUT"
+          echo "kernel_version=$version" >> "$GITHUB_OUTPUT"
+
+          missing=0
+          for arch in x86_64 arm64; do
+            for suffix in "" "-max"; do
+              tag="$arch-$version$suffix"
+              if gh release view "$tag" >/dev/null 2>&1; then
+                echo "$tag already exists."
+              else
+                echo "$tag is missing."
+                missing=1
+              fi
+            done
+          done
+
+          if [ "$missing" -eq 0 ]; then
+            echo "build_needed=false" >> "$GITHUB_OUTPUT"
+            echo "All releases for $version already exist; ending workflow before build."
+          else
+            echo "build_needed=true" >> "$GITHUB_OUTPUT"
+            echo "At least one release for $version is missing; build will continue."
+          fi
+
   cleanup:
+    needs: preflight
+    if: needs.preflight.outputs.build_needed == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: 删除旧的工作流运行记录
@@ -28,41 +92,54 @@ jobs:
           keep_minimum_runs: 0
 
   build:
-    needs: cleanup
+    needs: [preflight, cleanup]
+    if: ${{ always() && needs.preflight.outputs.build_needed == 'true' && needs.cleanup.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: x86_64
             runs_on: ubuntu-latest
+            profile: standard
+            profile_name: BBRv3
+            release_suffix: ""
+            localversion: -joeyblog-jacka1ltman-bbrv3
           - arch: arm64
             runs_on: ubuntu-24.04-arm
+            profile: standard
+            profile_name: BBRv3
+            release_suffix: ""
+            localversion: -joeyblog-jacka1ltman-bbrv3
+          - arch: x86_64
+            runs_on: ubuntu-latest
+            profile: max
+            profile_name: BBRv3 Max
+            release_suffix: -max
+            localversion: -joeyblog-jacka1ltman-bbrv3-max
+          - arch: arm64
+            runs_on: ubuntu-24.04-arm
+            profile: max
+            profile_name: BBRv3 Max
+            release_suffix: -max
+            localversion: -joeyblog-jacka1ltman-bbrv3-max
     runs-on: ${{ matrix.runs_on }}
     env:
       ARCH: ${{ matrix.arch }}
-      KERNEL_VERSION: ""
+      KERNEL_VERSION: ${{ needs.preflight.outputs.kernel_version }}
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_NOHARDLINK: "true"
     steps:
-      - name: 获取内核版本
-        id: get_kernel_version
-        run: |
-          version=$(curl -s https://www.kernel.org \
-            | grep -A1 -m1 "stable:" \
-            | grep -oP '\d+\.\d+\.\d+')
-          echo "KERNEL_VERSION=$version" >> $GITHUB_ENV
-
       - name: 检查是否已发布
         id: check_release
         run: |
-          tag="${{ matrix.arch }}-${KERNEL_VERSION}"
+          tag="${{ matrix.arch }}-${{ env.KERNEL_VERSION }}${{ matrix.release_suffix }}"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "BUILD_NEEDED=false" >> "$GITHUB_ENV"
             echo "$tag already exists; skipping build."
           else
             echo "BUILD_NEEDED=true" >> "$GITHUB_ENV"
-            echo "$tag does not exist; building latest kernel with pinned BBRv3 patch."
+            echo "$tag does not exist; building latest kernel with ${{ matrix.profile_name }}."
           fi
 
       - name: 检出代码
@@ -99,14 +176,24 @@ jobs:
           bash "$GITHUB_WORKSPACE/scripts/apply-bbrv3-port.sh"
           grep -n "BBR_VERSION" net/ipv4/tcp_bbr.c
 
+      - name: 应用 BBRv3 Max 极限内核配置
+        if: env.BUILD_NEEDED == 'true' && matrix.profile == 'max'
+        working-directory: ./kernel/linux
+        run: |
+          bash "$GITHUB_WORKSPACE/scripts/apply-bbrv3-max-profile.sh"
+
       - name: 编译声明
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           grep -v "MODULE_DESCRIPTION" net/ipv4/tcp_bbr.c > net/ipv4/tcp_bbr.c.tmp
           mv net/ipv4/tcp_bbr.c.tmp net/ipv4/tcp_bbr.c
-          
-          echo 'MODULE_DESCRIPTION("TCP BBR v3 (Bottleneck Bandwidth and RTT) - Compiled & Optimized by Joey");' >> net/ipv4/tcp_bbr.c
+
+          if [ "${{ matrix.profile }}" = "max" ]; then
+            echo 'MODULE_DESCRIPTION("TCP BBR v3 Max - aggressive throughput profile by Joey");' >> net/ipv4/tcp_bbr.c
+          else
+            echo 'MODULE_DESCRIPTION("TCP BBR v3 (Bottleneck Bandwidth and RTT) - Compiled & Optimized by Joey");' >> net/ipv4/tcp_bbr.c
+          fi
           
           tail -n 5 net/ipv4/tcp_bbr.c
 
@@ -126,146 +213,124 @@ jobs:
         timeout-minutes: 8
         working-directory: ./kernel/linux
         run: |
-          set -euxo pipefail
-          run_olddefconfig() {
-            if [ "${{ matrix.arch }}" = "arm64" ]; then
-              timeout 300 make ARCH=arm64 olddefconfig < /dev/null
-            else
-              timeout 300 make olddefconfig < /dev/null
-            fi
-          }
+          bash "$GITHUB_WORKSPACE/scripts/prepare-kernel-config.sh" "${{ matrix.arch }}"
 
-          if [ "${{ matrix.arch }}" = "arm64" ]; then
-            cp "$GITHUB_WORKSPACE/arm64.config" .config
-          else
-            cp "$GITHUB_WORKSPACE/x86-64.config" .config
-          fi
-
-          scripts/config --disable SYSTEM_TRUSTED_KEYS
-          scripts/config --disable SYSTEM_REVOCATION_KEYS
-          scripts/config --enable TCP_CONG_BBR
-          scripts/config --disable DEFAULT_CUBIC
-          scripts/config --enable DEFAULT_BBR
-          scripts/config --set-str DEFAULT_TCP_CONG bbr
-          # Avoid generating kernel debug info and linux-image-*-dbg packages.
-          scripts/config --disable DEBUG_INFO
-          scripts/config --enable DEBUG_INFO_NONE
-          scripts/config --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
-          scripts/config --disable DEBUG_INFO_DWARF4
-          scripts/config --disable DEBUG_INFO_DWARF5
-          scripts/config --disable DEBUG_INFO_REDUCED
-          scripts/config --disable DEBUG_INFO_COMPRESSED
-          scripts/config --disable DEBUG_INFO_SPLIT
-          scripts/config --disable DEBUG_INFO_BTF
-          scripts/config --disable DEBUG_INFO_BTF_MODULES
-          scripts/config --disable MODULE_ALLOW_BTF_MISMATCH
-          # Mitigation for Dirty Frag attack surface.
-          scripts/config --disable AFS_FS
-          scripts/config --disable XFRM_ESP
-          scripts/config --disable INET_ESP
-          scripts/config --disable INET6_ESP
-          scripts/config --disable AF_RXRPC
-          scripts/config --disable RXKAD
-          
-          run_olddefconfig
-
-          scripts/config --disable AFS_FS
-          scripts/config --disable XFRM_ESP
-          scripts/config --disable INET_ESP
-          scripts/config --disable INET6_ESP
-          scripts/config --disable AF_RXRPC
-          scripts/config --disable RXKAD
-          scripts/config --enable TCP_CONG_BBR
-          scripts/config --disable DEFAULT_CUBIC
-          scripts/config --enable DEFAULT_BBR
-          scripts/config --set-str DEFAULT_TCP_CONG bbr
-          scripts/config --disable DEBUG_INFO
-          scripts/config --enable DEBUG_INFO_NONE
-          scripts/config --disable DEBUG_INFO_DWARF_TOOLCHAIN_DEFAULT
-          scripts/config --disable DEBUG_INFO_DWARF4
-          scripts/config --disable DEBUG_INFO_DWARF5
-          scripts/config --disable DEBUG_INFO_REDUCED
-          scripts/config --disable DEBUG_INFO_COMPRESSED
-          scripts/config --disable DEBUG_INFO_SPLIT
-          scripts/config --disable DEBUG_INFO_BTF
-          scripts/config --disable DEBUG_INFO_BTF_MODULES
-          scripts/config --disable MODULE_ALLOW_BTF_MISMATCH
-
-          run_olddefconfig
-
-          if grep -q '^CONFIG_XFRM_ESP=' .config; then
-            echo "ERROR: CONFIG_XFRM_ESP is enabled; refusing to continue."
-            exit 1
-          fi
-          if grep -q '^CONFIG_INET_ESP=' .config; then
-            echo "ERROR: CONFIG_INET_ESP is enabled; refusing to continue."
-            exit 1
-          fi
-          if grep -q '^CONFIG_INET6_ESP=' .config; then
-            echo "ERROR: CONFIG_INET6_ESP is enabled; refusing to continue."
-            exit 1
-          fi
-          if grep -q '^CONFIG_AF_RXRPC=' .config; then
-            echo "ERROR: CONFIG_AF_RXRPC is enabled; refusing to continue."
-            exit 1
-          fi
-          if grep -q '^CONFIG_DEBUG_INFO=' .config; then
-            echo "ERROR: CONFIG_DEBUG_INFO is enabled; refusing to build debug kernel packages."
-            exit 1
-          fi
-          if ! grep -q '^CONFIG_TCP_CONG_BBR=y' .config; then
-            echo "ERROR: CONFIG_TCP_CONG_BBR is not built in."
-            exit 1
-          fi
-          if ! grep -q '^CONFIG_DEFAULT_BBR=y' .config; then
-            echo "ERROR: CONFIG_DEFAULT_BBR is not enabled."
-            exit 1
-          fi
-          if ! grep -q '^CONFIG_DEFAULT_TCP_CONG="bbr"' .config; then
-            echo "ERROR: CONFIG_DEFAULT_TCP_CONG is not bbr."
-            exit 1
-          fi
-          grep -E 'CONFIG_(DEBUG_INFO_NONE|TCP_CONG_BBR|DEFAULT_BBR|DEFAULT_TCP_CONG)=' .config
+      - name: 上传最终配置文件
+        if: env.BUILD_NEEDED == 'true' && matrix.profile == 'standard'
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-${{ matrix.arch }}-${{ matrix.profile }}-${{ env.KERNEL_VERSION }}
+          path: ./build-configs/${{ matrix.arch }}*.config
 
       - name: 构建内核 Debian 包
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
           if [ "${{ matrix.arch }}" = "arm64" ]; then
-            make ARCH=arm64 bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3 KDEB_COMPRESS=gzip skipdbg=true
+            make ARCH=arm64 bindeb-pkg -j$(nproc) LOCALVERSION=${{ matrix.localversion }} KDEB_COMPRESS=gzip skipdbg=true
           else
-            make bindeb-pkg -j$(nproc) LOCALVERSION=-joeyblog-jacka1ltman-bbrv3 KDEB_COMPRESS=gzip skipdbg=true
+            make bindeb-pkg -j$(nproc) LOCALVERSION=${{ matrix.localversion }} KDEB_COMPRESS=gzip skipdbg=true
           fi
 
       - name: 检查 deb 包
         if: env.BUILD_NEEDED == 'true'
         run: |
-          if find ./kernel -maxdepth 1 -name '*-dbg*.deb' | grep -q .; then
+          if find ./kernel -maxdepth 1 \( -name '*-dbg*.deb' -o -name '*-dbgsym*.deb' \) | grep -q .; then
             echo "ERROR: debug deb package was generated."
-            find ./kernel -maxdepth 1 -name '*-dbg*.deb' -print
+            find ./kernel -maxdepth 1 \( -name '*-dbg*.deb' -o -name '*-dbgsym*.deb' \) -print
             exit 1
           fi
           find ./kernel -maxdepth 1 -name 'linux-*.deb' -print | sort
 
-      - name: 上传配置文件
+      - name: 发布前复查是否已发布
         if: env.BUILD_NEEDED == 'true'
+        run: |
+          tag="${{ matrix.arch }}-${KERNEL_VERSION}${{ matrix.release_suffix }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "PUBLISH_NEEDED=false" >> "$GITHUB_ENV"
+            echo "$tag was published while this job was running; skipping upload and release."
+          else
+            echo "PUBLISH_NEEDED=true" >> "$GITHUB_ENV"
+            mkdir -p ./publish-markers
+            touch "./publish-markers/${{ matrix.arch }}-${{ matrix.profile }}"
+            echo "$tag still missing; publishing this build."
+          fi
+
+      - name: 上传发布标记
+        if: env.BUILD_NEEDED == 'true' && env.PUBLISH_NEEDED == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: config-${{ matrix.arch }}
-          path: ./kernel/linux/.config
-          include-hidden-files: true
+          name: publish-${{ matrix.arch }}-${{ matrix.profile }}-${{ env.KERNEL_VERSION }}
+          path: ./publish-markers/${{ matrix.arch }}-${{ matrix.profile }}
 
       - name: 上传 deb 包
-        if: env.BUILD_NEEDED == 'true'
+        if: env.BUILD_NEEDED == 'true' && env.PUBLISH_NEEDED == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: deb-${{ matrix.arch }}
+          name: deb-${{ matrix.arch }}-${{ matrix.profile }}
           path: ./kernel/linux-*.deb
 
       - name: 发布到 GitHub Release
-        if: env.BUILD_NEEDED == 'true'
+        if: env.BUILD_NEEDED == 'true' && env.PUBLISH_NEEDED == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ matrix.arch }}-${{ env.KERNEL_VERSION }}
-          files: ./kernel/linux-*.deb
-          body: "带有 BBRv3 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey and JackA1ltman."
+          tag_name: ${{ matrix.arch }}-${{ env.KERNEL_VERSION }}${{ matrix.release_suffix }}
+          files: |
+            ./kernel/linux-*.deb
+            ./build-configs/${{ matrix.arch }}-${{ env.KERNEL_VERSION }}.config
+          body: "带有 ${{ matrix.profile_name }} 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey."
+
+  update-config-baseline:
+    needs: [preflight, build]
+    if: ${{ always() && needs.preflight.outputs.build_needed == 'true' && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 下载本轮最终配置
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: config-*-standard-*
+          path: ./generated-configs
+          merge-multiple: true
+
+      - name: 下载发布标记
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: publish-*-standard-*
+          path: ./publish-markers
+          merge-multiple: true
+
+      - name: 回写配置基线
+        run: |
+          set -euxo pipefail
+          if [ ! -d ./publish-markers ] || ! find ./publish-markers -type f | grep -q .; then
+            echo "No published architectures found; skipping baseline update."
+            exit 0
+          fi
+
+          if [ ! -f ./generated-configs/x86_64.config ] && [ ! -f ./generated-configs/arm64.config ]; then
+            echo "No generated configs found; nothing to update."
+            exit 0
+          fi
+
+          if [ -f ./publish-markers/x86_64-standard ] && [ -f ./generated-configs/x86_64.config ]; then
+            cp ./generated-configs/x86_64.config ./x86-64.config
+          fi
+          if [ -f ./publish-markers/arm64-standard ] && [ -f ./generated-configs/arm64.config ]; then
+            cp ./generated-configs/arm64.config ./arm64.config
+          fi
+
+          if git diff --quiet -- x86-64.config arm64.config; then
+            echo "Generated configs match current baselines."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add x86-64.config arm64.config
+          git commit -m "Refresh generated kernel config baselines [skip ci]"
+          git push
