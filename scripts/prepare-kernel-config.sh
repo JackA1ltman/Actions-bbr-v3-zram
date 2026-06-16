@@ -65,6 +65,25 @@ apply_policy_config() {
   scripts/config --disable RXKAD
 }
 
+apply_zram_config(){
+  scripts/config --enable ZRAM
+  scripts/config --enable ZRAM_BACKEND_LZ4
+  scripts/config --enable ZRAM_BACKEND_LZ4HC
+  scripts/config --enable ZRAM_BACKEND_ZSTD
+  scripts/config --enable ZRAM_BACKEND_DEFLATE
+  scripts/config --enable ZRAM_BACKEND_LZO
+  scripts/config --enable ZRAM_BACKEND_842
+  scripts/config --enable ZRAM_DEF_COMP_ZSTD
+  scripts/config --disable ZRAM_DEF_COMP_LZORLE
+  scripts/config --set-str ZRAM_DEF_COMP zstd
+  scripts/config --enable CRYPTO_LZ4
+  scripts/config --enable CRYPTO_LZ4HC
+  scripts/config --enable CRYPTO_ZSTD
+  scripts/config --enable CRYPTO_DEFLATE
+  scripts/config --enable CRYPTO_LZO
+  scripts/config --enable CRYPTO_842
+}
+
 require_config_line() {
   local line="$1"
   local message="$2"
@@ -109,6 +128,26 @@ validate_config() {
   grep -E 'CONFIG_(DEBUG_INFO_NONE|TCP_CONG_BBR|DEFAULT_BBR|DEFAULT_TCP_CONG|NET_SCH_DEFAULT|NET_SCH_FQ|NET_SCH_FQ_CODEL|NET_SCH_PIE|NET_SCH_FQ_PIE|NET_SCH_CAKE|DEFAULT_FQ|DEFAULT_NET_SCH|NETFILTER_XTABLES_LEGACY|IP_NF_IPTABLES_LEGACY|IP_NF_NAT|IP_NF_FILTER|IP_NF_TARGET_MASQUERADE|IP6_NF_IPTABLES_LEGACY|IP6_NF_NAT|IP6_NF_FILTER)=' .config
 }
 
+validate_zram_config(){
+  require_config_line 'CONFIG_ZRAM=y' 'CONFIG_ZRAM is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_LZ4=y' 'CONFIG_ZRAM_BACKEND_LZ4 is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_LZ4HC=y' 'CONFIG_ZRAM_BACKEND_LZ4HC is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_ZSTD=y' 'CONFIG_ZRAM_BACKEND_ZSTD is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_DEFLATE=y' 'CONFIG_ZRAM_BACKEND_DEFLATE is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_LZO=y' 'CONFIG_ZRAM_BACKEND_LZO is not built in.'
+  require_config_line 'CONFIG_ZRAM_BACKEND_842=y' 'CONFIG_ZRAM_BACKEND_842 is not built in.'
+  require_config_line 'CONFIG_ZRAM_DEF_COMP_ZSTD=y' 'CONFIG_ZRAM_DEF_COMP_ZSTD is not built in.'
+  require_config_line 'CONFIG_ZRAM_DEF_COMP="zstd"' 'CONFIG_ZRAM_DEF_COMP is not zstd'
+  require_config_line 'CONFIG_CRYPTO_LZ4=y' 'CONFIG_CRYPTO_LZ4 is not built in.'
+  require_config_line 'CONFIG_CRYPTO_LZ4HC=y' 'CONFIG_CRYPTO_LZ4HC is not built in.'
+  require_config_line 'CONFIG_CRYPTO_ZSTD=y' 'CONFIG_CRYPTO_ZSTD is not built in.'
+  require_config_line 'CONFIG_CRYPTO_DEFLATE=y' 'CONFIG_CRYPTO_DEFLATE is not built in.'
+  require_config_line 'CONFIG_CRYPTO_LZO=y' 'CONFIG_CRYPTO_LZO is not built in.'
+  require_config_line 'CONFIG_CRYPTO_842=y' 'CONFIG_CRYPTO_842 is not built in.'
+
+  grep -E 'CONFIG_(ZRAM|ZRAM_BACKEND_LZ4|ZRAM_BACKEND_LZ4HC|ZRAM_BACKEND_ZSTD|ZRAM_BACKEND_DEFLATE|ZRAM_BACKEND_LZO|ZRAM_BACKEND_842|ZRAM_DEF_COMP|CRYPTO_LZ4|CRYPTO_LZ4HC|CRYPTO_ZSTD|CRYPTO_DEFLATE|CRYPTO_LZO|CRYPTO_842)=' .config
+}
+
 case "$arch" in
   arm64)
     cp "$GITHUB_WORKSPACE/arm64.config" .config
@@ -123,10 +162,12 @@ case "$arch" in
 esac
 
 apply_policy_config
+apply_zram_config
 run_olddefconfig
 apply_policy_config
 run_olddefconfig
 validate_config
+validate_zram_config
 
 mkdir -p "$GITHUB_WORKSPACE/build-configs"
 cp .config "$GITHUB_WORKSPACE/build-configs/${arch}.config"
