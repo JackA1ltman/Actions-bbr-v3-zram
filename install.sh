@@ -2,7 +2,8 @@
 
 # 限制脚本仅支持基于 Debian/Ubuntu 的系统
 if ! command -v apt-get &> /dev/null; then
-    echo -e "\033[31m此脚本仅支持基于 Debian/Ubuntu 的系统，请在支持 apt-get 的系统上运行！\033[0m"
+    echo -e "\033[31m此脚本仅支持 Debian/Ubuntu 系统，请在支持 apt-get 和 .deb 内核包的系统上运行！\033[0m"
+    echo -e "\033[33mAlpine Linux 等非 Debian 系统暂不支持安装本项目内核包。\033[0m"
     exit 1
 fi
 
@@ -105,10 +106,21 @@ version_ge() {
     [[ "$(printf '%s\n' "$required" "$current" | sort -V | head -n 1)" == "$required" ]]
 }
 
+debian_version_from_codename() {
+    case "${1:-}" in
+        bookworm) echo "12" ;;
+        trixie) echo "13" ;;
+        forky) echo "14" ;;
+        sid|unstable) echo "999" ;;
+        *) return 1 ;;
+    esac
+}
+
 # 函数：限制旧系统安装 7.x 主线内核，避免启动失败或 kernel panic
 assert_supported_kernel_install_system() {
     local os_id=""
     local os_version=""
+    local os_codename=""
     local os_name=""
     local min_version=""
     local distro_name=""
@@ -123,6 +135,7 @@ assert_supported_kernel_install_system() {
     . /etc/os-release
     os_id="${ID:-}"
     os_version="${VERSION_ID:-}"
+    os_codename="${VERSION_CODENAME:-${UBUNTU_CODENAME:-}}"
     os_name="${PRETTY_NAME:-${NAME:-未知系统}}"
 
     case "$os_id" in
@@ -133,6 +146,9 @@ assert_supported_kernel_install_system() {
         debian)
             min_version="12"
             distro_name="Debian"
+            if [[ -z "$os_version" ]]; then
+                os_version="$(debian_version_from_codename "$os_codename" || true)"
+            fi
             ;;
         *)
             echo -e "\033[31m当前系统为 $os_name，不在 7.x 主线内核安装白名单内。\033[0m"
