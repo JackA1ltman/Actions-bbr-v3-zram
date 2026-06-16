@@ -19,14 +19,6 @@ concurrency:
   group: bbrv3-kernel-build
   cancel-in-progress: true
 
-permissions:
-  contents: write
-  actions: write
-
-concurrency:
-  group: bbrv3-kernel-build
-  cancel-in-progress: false
-
 jobs:
   preflight:
     runs-on: ubuntu-latest
@@ -226,6 +218,9 @@ jobs:
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
+          export CC="ccache gcc"
+          export CXX="ccache g++"
+
           if [ "${{ matrix.arch }}" = "arm64" ]; then
             make ARCH=arm64 bindeb-pkg -j$(nproc) LOCALVERSION=${{ matrix.localversion }} KDEB_COMPRESS=gzip skipdbg=true
           else
