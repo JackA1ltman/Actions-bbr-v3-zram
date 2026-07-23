@@ -1130,7 +1130,14 @@ install_latest_version() {
     LATEST_TAG_NAME=$(echo "$RELEASE_DATA" | jq -r --arg filter "$arch_filter" --arg profile "$profile" '
       map(
         select(.tag_name | test("^" + $filter + "-[0-9]"; "i"))
-        | select(if $profile == "max" then (.tag_name | endswith("-max")) else ((.tag_name | endswith("-max")) | not) end)
+        |
+        select(
+        if $profile == "max" then
+            (.tag_name | endswith("-max-server"))
+        else
+            ((.tag_name | endswith("-server")) and (.tag_name | endswith("-max") | not))
+        end
+        )
       )
       | sort_by(.published_at)
       | .[-1].tag_name
