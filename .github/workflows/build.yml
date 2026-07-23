@@ -53,7 +53,7 @@ jobs:
 
           missing=0
           for arch in x86_64 arm64; do
-            for suffix in "-server" "-max"; do
+            for suffix in "-server" "-server-max"; do
               tag="$arch-$version$suffix"
               if gh release view "$tag" >/dev/null 2>&1; then
                 echo "$tag already exists."
@@ -106,13 +106,13 @@ jobs:
             runs_on: ubuntu-latest
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: -max
+            release_suffix: "-server-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
           - arch: arm64
             runs_on: ubuntu-24.04-arm
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: -max
+            release_suffix: "-server-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
     runs-on: ${{ matrix.runs_on }}
     env:
