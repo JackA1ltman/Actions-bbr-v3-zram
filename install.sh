@@ -1130,14 +1130,7 @@ install_latest_version() {
     LATEST_TAG_NAME=$(echo "$RELEASE_DATA" | jq -r --arg filter "$arch_filter" --arg profile "$profile" '
       map(
         select(.tag_name | test("^" + $filter + "-[0-9]"; "i"))
-        |
-        select(
-        if $profile == "max" then
-            (.tag_name | endswith("-max-server"))
-        else
-            ((.tag_name | endswith("-server")) and (.tag_name | endswith("-max") | not))
-        end
-        )
+        | select(if $profile == "max" then (.tag_name | endswith("-desktop-debian-max")) else (.tag_name | endswith("-desktop-debian")) end)
       )
       | sort_by(.published_at)
       | .[-1].tag_name
@@ -1197,7 +1190,7 @@ install_specific_version() {
     MATCH_TAGS=$(echo "$RELEASE_DATA" | jq -r --arg filter "$arch_filter" --arg profile "$profile" '
       .[]
       | select(.tag_name | test("^" + $filter + "-[0-9]"; "i"))
-      | select(if $profile == "max" then (.tag_name | endswith("-max")) else ((.tag_name | endswith("-max")) | not) end)
+      | select(if $profile == "max" then (.tag_name | endswith("-server-max")) else (.tag_name | endswith("-server")) end)
       | .tag_name
     ')
 
