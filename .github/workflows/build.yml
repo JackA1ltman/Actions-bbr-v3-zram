@@ -1,4 +1,4 @@
-name: 构建带有BBRv3的内核
+name: 构建带有BBRv3的服务器内核
 
 on:
   workflow_dispatch:
