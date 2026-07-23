@@ -44,7 +44,7 @@ MODULES_CONF="/etc/modules-load.d/joeyblog-qdisc.conf"
 # 安全加固配置（Dirty Frag 风险面收敛）
 SECURITY_MODPROBE_CONF="/etc/modprobe.d/99-joeyblog-security.conf"
 # 脚本远程入口和本地快捷命令
-INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3/main/install.sh"
+INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/install.sh"
 QUICK_COMMAND_PATH="/usr/local/bin/b"
 # 可选：提升 GitHub API 限额（支持 GITHUB_TOKEN / GH_TOKEN）
 GITHUB_API_TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
@@ -894,8 +894,8 @@ apply_security_mitigations() {
     local changed=0
 
     sudo touch "$SECURITY_MODPROBE_CONF"
-    if ! grep -Fqx "# Managed by Actions-bbr-v3" "$SECURITY_MODPROBE_CONF" 2>/dev/null; then
-        echo "# Managed by Actions-bbr-v3" | sudo tee -a "$SECURITY_MODPROBE_CONF" > /dev/null
+    if ! grep -Fqx "# Managed by Actions-bbr-v3-zram" "$SECURITY_MODPROBE_CONF" 2>/dev/null; then
+        echo "# Managed by Actions-bbr-v3-zram" | sudo tee -a "$SECURITY_MODPROBE_CONF" > /dev/null
         changed=1
     fi
 
