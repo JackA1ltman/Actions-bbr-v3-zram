@@ -273,7 +273,7 @@ jobs:
           files: |
             ./kernel/linux-*.deb
             ./build-configs/${{ matrix.arch }}-${{ env.KERNEL_VERSION }}.config
-          body: "带有 ${{ matrix.profile_name }} 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey."
+          body: "带有 ${{ matrix.profile_name }} 的最新内核，适用于 ${{ matrix.arch }} 架构。Compiled & Optimized by Joey & JackA1ltman."
 
   update-config-baseline:
     needs: [preflight, build]
