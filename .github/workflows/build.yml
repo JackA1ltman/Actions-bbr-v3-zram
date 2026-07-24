@@ -58,7 +58,7 @@ jobs:
 
           missing=0
           for arch in x86_64 arm64; do
-            for suffix in "-server" "-server-max"; do
+            for suffix in "-debian-server" "-debian-server-max"; do
               tag="$arch-$version$suffix"
               if gh release view "$tag" >/dev/null 2>&1; then
                 echo "$tag already exists."
