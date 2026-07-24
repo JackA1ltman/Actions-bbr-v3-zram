@@ -39,7 +39,7 @@ jobs:
             exit 1
           fi
 
-          if [[ $full_version =~ ^([0-9]+\.[0-9]+) ]]; then
+          if [[ $raw_version =~ ^([0-9]+\.[0-9]+) ]]; then
             short_version="${BASH_REMATCH[1]}"
           fi
 
