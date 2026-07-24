@@ -25,6 +25,7 @@ jobs:
     outputs:
       kernel_version: ${{ steps.plan.outputs.kernel_version }}
       raw_kernel_version: ${{ steps.plan.outputs.raw_kernel_version }}
+      short_kernel_version: ${{ steps.plan.outputs.short_version }}
       build_needed: ${{ steps.plan.outputs.build_needed }}
     steps:
       - name: 检查最新内核和已发布版本
@@ -155,7 +156,7 @@ jobs:
             libncurses-dev libssl-dev libelf-dev \
             bison bc flex rsync debhelper \
             dpkg-dev fakeroot kmod cpio dwarves \
-            libdw-dev lz4 zstd xz-utils curl jq
+            libdw-dev lz4 zstd xz-utils curl jq quilt
 
       - name: 创建源码目录
         if: env.BUILD_NEEDED == 'true'
