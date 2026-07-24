@@ -42,6 +42,8 @@ jobs:
           if [[ $raw_version =~ ^([0-9]+\.[0-9]+) ]]; then
             short_version="${BASH_REMATCH[1]}"
           fi
+          echo "Current Kernel Version: $raw_version"
+          echo "Current Kernel Short Version: $short_version"
 
           version="$raw_version"
           if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
