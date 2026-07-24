@@ -39,6 +39,10 @@ jobs:
             exit 1
           fi
 
+          if [[ $full_version =~ ^([0-9]+\.[0-9]+) ]]; then
+            short_version="${BASH_REMATCH[1]}"
+          fi
+
           version="$raw_version"
           if [[ "$version" =~ ^[0-9]+\.[0-9]+$ ]]; then
             version="${version}.0"
@@ -50,6 +54,7 @@ jobs:
 
           echo "raw_kernel_version=$raw_version" >> "$GITHUB_OUTPUT"
           echo "kernel_version=$version" >> "$GITHUB_OUTPUT"
+          echo "short_kernel_version=$short_version" >> "$GITHUB_OUTPUT"
 
           missing=0
           for arch in x86_64 arm64; do
@@ -94,30 +99,31 @@ jobs:
             runs_on: ubuntu-latest
             profile: standard
             profile_name: BBRv3
-            release_suffix: "-server"
+            release_suffix: "-debian-server"
             localversion: -joeyblog-jacka1ltman-bbrv3
           - arch: arm64
             runs_on: ubuntu-24.04-arm
             profile: standard
             profile_name: BBRv3
-            release_suffix: "-server"
+            release_suffix: "-debian-server"
             localversion: -joeyblog-jacka1ltman-bbrv3
           - arch: x86_64
             runs_on: ubuntu-latest
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: "-server-max"
+            release_suffix: "-debian-server-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
           - arch: arm64
             runs_on: ubuntu-24.04-arm
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: "-server-max"
+            release_suffix: "-debian-server-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
     runs-on: ${{ matrix.runs_on }}
     env:
       ARCH: ${{ matrix.arch }}
       KERNEL_VERSION: ${{ needs.preflight.outputs.kernel_version }}
+      SHORT_KERNEL_VERSION: ${{ needs.preflight.outputs.short_kernel_version }}
       CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
       CCACHE_NOHASHDIR: "true"
       CCACHE_NOHARDLINK: "true"
@@ -190,6 +196,30 @@ jobs:
           tail -n 5 net/ipv4/tcp_bbr.c
 
           echo "BUILD_TIME=$(date +%s)" >> $GITHUB_ENV
+
+      - name: 应用 Debian 官方补丁
+        if: env.BUILD_NEEDED == 'true'
+        working-directory: ./kernel/linux
+        run: |
+          git clone https://salsa.debian.org/kernel-team/linux.git -b debian/"${{ env.SHORT_KERNEL_VERSION }}"/forky debian-patches
+          ln -sf debian-patches/debian ./debian
+          export QUILT_PATCHES=debian/patches
+          quilt push -a
+
+          if [[ "${{ matrix.arch }}" == "x86_64" ]]; then
+            DEBIAN_ARCH="amd64"
+            DEBIAN_DEFCONFIG="x86-64"
+          elif [[ "${{ matrix.arch }}" == "arm64" ]]; then
+            DEBIAN_ARCH="arm64"
+            DEBIAN_DEFCONFIG="arm64"
+          fi
+
+          wget http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"_"${{ env.KERNEL_VERSION }}"-1_"$DEBIAN_ARCH".deb -O linux-base.deb
+          ar x "linux-base.deb"
+          tar -xf data.tar.* ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"
+          cp -f ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH" $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
+          rm -f control.tar.* data.tar.* debian-binary linux-base.deb
+          rm -r ./boot
 
       - name: 更新 Makefile 中的版本号
         if: env.BUILD_NEEDED == 'true'

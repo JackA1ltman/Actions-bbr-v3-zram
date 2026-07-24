@@ -1,5 +1,8 @@
 # BBRv3 管理脚本
 
+>[!important]
+>实验分支！合入Debian上游补丁
+
 一个用于 Debian/Ubuntu VPS 的 BBRv3 内核安装与网络加速管理脚本。
 
 本内核默认启用Zstd压缩为默认，但提供LZ4，LZ4HC，LZO，DEFALTE等压缩算法。
@@ -89,7 +92,7 @@ linux-7.1.y -> patches/bbrv3-linux-7.1.patch
 ## 安装最新版
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/debian/install.sh)
 ```
 
 首次运行后也可以直接输入：
@@ -120,7 +123,7 @@ b
 
 ```bash
 export GITHUB_TOKEN=你的 GitHub Token
-bash <(curl -fsSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/JackA1ltman/Actions-bbr-v3-zram/debian/install.sh)
 ```
 
 ## 指定版本安装
