@@ -25,7 +25,7 @@ jobs:
     outputs:
       kernel_version: ${{ steps.plan.outputs.kernel_version }}
       raw_kernel_version: ${{ steps.plan.outputs.raw_kernel_version }}
-      short_kernel_version: ${{ steps.plan.outputs.short_version }}
+      short_kernel_version: ${{ steps.plan.outputs.short_kernel_version }}
       build_needed: ${{ steps.plan.outputs.build_needed }}
     steps:
       - name: 检查最新内核和已发布版本
