@@ -204,8 +204,6 @@ jobs:
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
-          DEB_URL="http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-${{ env.KERNEL_VERSION }}+deb14-${DEBIAN_ARCH}_${{ env.KERNEL_VERSION }}-1_${DEBIAN_ARCH}.deb"
-
           git clone https://salsa.debian.org/kernel-team/linux.git -b debian/"${{ env.SHORT_KERNEL_VERSION }}"/forky debian-patches
           ln -sf debian-patches/debian ./debian
           export QUILT_PATCHES=debian/patches
@@ -218,6 +216,8 @@ jobs:
             DEBIAN_ARCH="arm64"
             DEBIAN_DEFCONFIG="arm64"
           fi
+
+          DEB_URL="http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-${{ env.KERNEL_VERSION }}+deb14-${DEBIAN_ARCH}_${{ env.KERNEL_VERSION }}-1_${DEBIAN_ARCH}.deb"
 
           if ! wget -q "$DEB_URL"; then
             echo "Not found linux base, Skipped."
