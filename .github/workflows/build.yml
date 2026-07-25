@@ -224,6 +224,24 @@ jobs:
           rm -f control.tar.* data.tar.* debian-binary linux-base.deb
           rm -r ./boot
 
+      - name: 应用 Tachyon Clear Linux 补丁
+        if: env.BUILD_NEEDED == 'true'
+        working-directory: ./kernel/linux
+        run: |
+          git clone https://git.staropensource.de/StarOpenSource/Linux-Tachyon.git -b develop --depth 1
+          PATCH_DIR="./Linux-Tachyon/patches"
+
+          while IFS= read -r line; do
+            # Skip empty lines, comments, and BBR-related patches
+            [[ -z "$line" || "$line" == \#* ]] && continue
+            [[ "$line" =~ [Bb][Bb][Rr] ]] && continue
+
+            echo "==> Applying: $line"
+            patch -p1 < "${PATCH_DIR}/${line}"
+          done < "./Linux-Tachyon/patch_list.txt"
+
+          echo "All patches applied successfully."
+
       - name: 更新 Makefile 中的版本号
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
