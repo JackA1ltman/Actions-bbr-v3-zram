@@ -204,6 +204,8 @@ jobs:
         if: env.BUILD_NEEDED == 'true'
         working-directory: ./kernel/linux
         run: |
+          DEB_URL="http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-${{ env.KERNEL_VERSION }}+deb14-${DEBIAN_ARCH}_${{ env.KERNEL_VERSION }}-1_${DEBIAN_ARCH}.deb"
+
           git clone https://salsa.debian.org/kernel-team/linux.git -b debian/"${{ env.SHORT_KERNEL_VERSION }}"/forky debian-patches
           ln -sf debian-patches/debian ./debian
           export QUILT_PATCHES=debian/patches
@@ -217,12 +219,19 @@ jobs:
             DEBIAN_DEFCONFIG="arm64"
           fi
 
-          wget http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"_"${{ env.KERNEL_VERSION }}"-1_"$DEBIAN_ARCH".deb -O linux-base.deb
-          ar x "linux-base.deb"
-          tar -xf data.tar.* ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"
-          cp -f ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH" $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
-          rm -f control.tar.* data.tar.* debian-binary linux-base.deb
-          rm -r ./boot
+          if ! wget -q "$DEB_URL"; then
+            echo "Not found linux base, Skipped."
+
+          else
+            echo "Download succeeded, extracting defconfig..."
+            wget "$DEB_URL" -O linux-base.deb
+            ar x "linux-base.deb"
+            tar -xf data.tar.* ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"
+            cp -f ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH" $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
+            rm -f control.tar.* data.tar.* debian-binary linux-base.deb
+            rm -r ./boot
+
+          fi
 
       - name: 应用 Tachyon Clear Linux 补丁
         if: env.BUILD_NEEDED == 'true'
