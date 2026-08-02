@@ -61,7 +61,7 @@ jobs:
 
           missing=0
           for arch in x86_64 arm64; do
-            for suffix in "-debian-server" "-debian-server-max"; do
+            for suffix in "-debian" "-debian-max"; do
               tag="$arch-$version$suffix"
               if gh release view "$tag" >/dev/null 2>&1; then
                 echo "$tag already exists."
@@ -102,25 +102,25 @@ jobs:
             runs_on: ubuntu-latest
             profile: standard
             profile_name: BBRv3
-            release_suffix: "-debian-server"
+            release_suffix: "-debian"
             localversion: -joeyblog-jacka1ltman-bbrv3
           - arch: arm64
             runs_on: ubuntu-24.04-arm
             profile: standard
             profile_name: BBRv3
-            release_suffix: "-debian-server"
+            release_suffix: "-debian"
             localversion: -joeyblog-jacka1ltman-bbrv3
           - arch: x86_64
             runs_on: ubuntu-latest
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: "-debian-server-max"
+            release_suffix: "-debian-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
           - arch: arm64
             runs_on: ubuntu-24.04-arm
             profile: max
             profile_name: BBRv3 Max
-            release_suffix: "-debian-server-max"
+            release_suffix: "-debian-max"
             localversion: -joeyblog-jacka1ltman-bbrv3-max
     runs-on: ${{ matrix.runs_on }}
     env:
@@ -220,7 +220,8 @@ jobs:
           DEB_URL="http://ftp.us.debian.org/debian/pool/main/l/linux/linux-base-${{ env.KERNEL_VERSION }}+deb14-${DEBIAN_ARCH}_${{ env.KERNEL_VERSION }}-1_${DEBIAN_ARCH}.deb"
 
           if ! wget -q "$DEB_URL"; then
-            echo "Not found linux base, Skipped."
+            echo "Not found linux base, Aborted."
+            false
 
           else
             echo "Download succeeded, extracting defconfig..."
