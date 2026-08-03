@@ -110,18 +110,6 @@ jobs:
             profile_name: BBRv3
             release_suffix: "-debian"
             localversion: -joeyblog-jacka1ltman-bbrv3
-          - arch: x86_64
-            runs_on: ubuntu-latest
-            profile: max
-            profile_name: BBRv3 Max
-            release_suffix: "-debian-max"
-            localversion: -joeyblog-jacka1ltman-bbrv3-max
-          - arch: arm64
-            runs_on: ubuntu-24.04-arm
-            profile: max
-            profile_name: BBRv3 Max
-            release_suffix: "-debian-max"
-            localversion: -joeyblog-jacka1ltman-bbrv3-max
     runs-on: ${{ matrix.runs_on }}
     env:
       ARCH: ${{ matrix.arch }}
