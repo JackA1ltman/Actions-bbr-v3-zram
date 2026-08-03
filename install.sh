@@ -984,10 +984,10 @@ get_installed_version() {
     versions=$(dpkg -l 2>/dev/null | awk '/^ii/ && $2 ~ /^linux-image-/ && $2 ~ /joeyblog/ {sub(/^linux-image-/, "", $2); print $2}')
     case "$profile" in
         standard)
-            echo "$versions" | grep -E -- '-joeyblog-bbrv3$' | sort -V | tail -n 1
+            echo "$versions" | grep -E -- '-joeyblog-jacka1ltman-bbrv3$' | sort -V | tail -n 1
             ;;
         max)
-            echo "$versions" | grep -E -- '-joeyblog-bbrv3-max$' | sort -V | tail -n 1
+            echo "$versions" | grep -E -- '-joeyblog-jacka1ltman-bbrv3-max$' | sort -V | tail -n 1
             ;;
         *)
             echo "$versions" | sort -V | tail -n 1
@@ -1020,9 +1020,9 @@ get_expected_installed_version() {
     version="${version%-max}"
 
     if [[ "$profile" == "max" ]]; then
-        echo "${version}-joeyblog-bbrv3-max"
+        echo "${version}-joeyblog-jacka1ltman-bbrv3-max"
     else
-        echo "${version}-joeyblog-bbrv3"
+        echo "${version}-joeyblog-jacka1ltman-bbrv3"
     fi
 }
 
