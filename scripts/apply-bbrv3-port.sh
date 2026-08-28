@@ -18,9 +18,19 @@ kernel_version=$(awk '
 patch_file="${BBRV3_PATCH:-$repo_root/patches/bbrv3-linux-$kernel_version.patch}"
 
 if [[ ! -f "$patch_file" ]]; then
-  echo "BBRv3 patch not found for linux-$kernel_version.y: $patch_file" >&2
-  echo "Add a matching patches/bbrv3-linux-$kernel_version.patch before building this kernel series." >&2
-  exit 1
+  # 上游开新系列(如 7.1 -> 7.2)时补丁文件必然缺席。BBRv3 的移植内容跨小版本
+  # 基本不变，冲突通常只是行号偏移，直接硬退出会让整条流水线停摆到有人手工补文件。
+  # 这里回退到版本号最大的那份旧补丁，配合下面的模糊应用去试；真冲突仍会失败。
+  fallback_patch=$(ls "$repo_root"/patches/bbrv3-linux-*.patch 2>/dev/null \
+    | sort -t- -k3 -V | tail -n 1)
+  if [[ -z "$fallback_patch" ]]; then
+    echo "BBRv3 patch not found for linux-$kernel_version.y: $patch_file" >&2
+    echo "Add a matching patches/bbrv3-linux-$kernel_version.patch before building this kernel series." >&2
+    exit 1
+  fi
+  echo "No patch for linux-$kernel_version.y; falling back to $(basename "$fallback_patch")." >&2
+  echo "Refresh patches/bbrv3-linux-$kernel_version.patch from a successful build tree." >&2
+  patch_file="$fallback_patch"
 fi
 
 # 先试精确应用；失败再退到带模糊匹配的 patch(1)。
