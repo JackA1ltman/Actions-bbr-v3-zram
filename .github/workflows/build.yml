@@ -218,7 +218,6 @@ jobs:
             tar -xf data.tar.* ./usr/lib/modules/"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"/config
             cp -f ./usr/lib/modules/"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"/config $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
             rm -f control.tar.* data.tar.* debian-binary linux-base.deb
-            rm -r ./usr
 
           fi
 
