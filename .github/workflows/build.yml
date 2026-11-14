@@ -215,10 +215,10 @@ jobs:
             echo "Download succeeded, extracting defconfig..."
             wget "$DEB_URL" -O linux-base.deb
             ar x "linux-base.deb"
-            tar -xf data.tar.* ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"
-            cp -f ./boot/config-"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH" $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
+            tar -xf data.tar.* ./usr/lib/modules/"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"/config
+            cp -f ./usr/lib/modules/"${{ env.KERNEL_VERSION }}"+deb14-"$DEBIAN_ARCH"/config $GITHUB_WORKSPACE/"$DEBIAN_DEFCONFIG".config
             rm -f control.tar.* data.tar.* debian-binary linux-base.deb
-            rm -r ./boot
+            rm -r ./usr
 
           fi
 
